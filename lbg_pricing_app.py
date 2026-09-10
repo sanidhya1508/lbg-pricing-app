@@ -412,7 +412,188 @@ with tab1:
             st.success(f"✅ Template Saved")
     with col3:
         st.metric("Scenarios", len(st.session_state.scenarios))
+    # ==================== EXCEL DOWNLOAD ====================
+    st.markdown("---")
+    st.subheader("📥 Download Pricing Sheet (Excel)")
 
+    def generate_excel():
+        import io
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+
+            # Sheet 1: Input Parameters
+            inputs = pd.DataFrame({
+                "Parameter": [
+                    "Skill Type", "Complexity Level", "Geography", "Geography Name",
+                    "Base Monthly Salary", "Salary Currency", "Number of FTEs",
+                    "WFO/WFH Model", "Contract Duration (Years)", "Display Currency",
+                    "Shrinkage Rate", "Attrition Rate", "Target Margin %",
+                    "", "--- Cost Components (%) ---", "",
+                    "Salary %", "Benefits %", "Overhead %", "Training %",
+                    "Onboarding %", "QA/Audit %", "Compliance %", "Tools/Tech %",
+                    "", "--- Ramp-Up Schedule ---", "",
+                    "Months 1-3 Ramp Cost %", "Months 4-6 Ramp Cost %", "Months 7+ Ramp Cost %",
+                    "", "--- Incentives & Adjustments ---", "",
+                    "Retention Bonus %", "Performance Bonus %", "Skill Premium %", "Discount/Markup %"
+                ],
+                "Value": [
+                    skill_type, complexity, geography, GEOGRAPHIES[geography]['name'],
+                    base_salary, geo_currency, ftes,
+                    wfo_model, years, currency,
+                    shrinkage, attrition, margin_target,
+                    "", "", "",
+                    salary_pct, benefits_pct, overhead_pct, training_pct,
+                    onboarding_pct, qa_cost_pct, compliance_pct, tools_pct,
+                    "", "", "",
+                    ramp_m1_bonus, ramp_m4_bonus, ramp_m7_bonus,
+                    "", "", "",
+                    retention_bonus, performance_bonus, skill_premium, discount_markup
+                ]
+            })
+            inputs.to_excel(writer, sheet_name="Input Parameters", index=False)
+
+            # Sheet 2: Key Metrics
+            metrics = pd.DataFrame({
+                "Metric": [
+                    "Annual Cost per FTE (Local)", "Annual Cost per FTE (Display)",
+                    "Total Team Cost/Year (Local)", "Total Team Cost/Year (Display)",
+                    "ACV (Display Currency)", "TCV (Display Currency)",
+                    "Margin %", "Margin Amount (Display)",
+                    "", "--- Year 1 Costs ---", "",
+                    "Total Team Cost", "Ramp-Up Cost", "Retention Cost",
+                    "Performance Cost", "Skill Premium Cost",
+                    "Total Y1 Cost (before markup)", "Final Y1 Cost (after markup)",
+                ],
+                "Value": [
+                    f"{geo_symbol}{total_annual_cost_per_fte:,.0f}",
+                    f"{currency_symbol}{total_annual_cost_per_fte*conv:,.0f}",
+                    f"{geo_symbol}{total_team_cost:,.0f}",
+                    f"{currency_symbol}{total_team_cost*conv:,.0f}",
+                    f"{currency_symbol}{acv*conv:,.0f}",
+                    f"{currency_symbol}{tcv*conv:,.0f}",
+                    f"{margin_pct_calc:.1f}%",
+                    f"{currency_symbol}{margin_dollars*conv:,.0f}",
+                    "", "", "",
+                    f"{geo_symbol}{total_team_cost:,.0f}",
+                    f"{geo_symbol}{ramp_cost:,.0f}",
+                    f"{geo_symbol}{retention_cost:,.0f}",
+                    f"{geo_symbol}{performance_cost:,.0f}",
+                    f"{geo_symbol}{skill_cost:,.0f}",
+                    f"{geo_symbol}{total_y1_cost:,.0f}",
+                    f"{geo_symbol}{final_y1_cost:,.0f}",
+                ],
+                "Numeric": [
+                    total_annual_cost_per_fte, total_annual_cost_per_fte*conv,
+                    total_team_cost, total_team_cost*conv,
+                    acv*conv, tcv*conv,
+                    margin_pct_calc, margin_dollars*conv,
+                    "", "", "",
+                    total_team_cost, ramp_cost, retention_cost,
+                    performance_cost, skill_cost,
+                    total_y1_cost, final_y1_cost,
+                ]
+            })
+            metrics.to_excel(writer, sheet_name="Key Metrics", index=False)
+
+            # Sheet 3: Cost Breakdown per FTE
+            breakdown = pd.DataFrame({
+                "Component": ["Salary", "Benefits", "Overhead", "Training",
+                              "QA/Audit", "Compliance", "Tools/Tech", "Onboarding",
+                              "Shrinkage", "Attrition", "TOTAL per FTE"],
+                f"Annual Local ({geo_symbol})": [
+                    round(annual_cost_adjusted*salary_pct/total_cost_pct),
+                    round(annual_cost_adjusted*benefits_pct/total_cost_pct),
+                    round(annual_cost_adjusted*overhead_pct/total_cost_pct),
+                    round(annual_cost_adjusted*training_pct/total_cost_pct),
+                    round(qa_cost), round(compliance_cost),
+                    round(tools_cost), round(onboarding_cost),
+                    round(shrinkage_cost), round(attrition_cost_fte),
+                    round(total_annual_cost_per_fte)
+                ],
+                f"Annual Display ({currency_symbol})": [
+                    round(annual_cost_adjusted*salary_pct/total_cost_pct*conv),
+                    round(annual_cost_adjusted*benefits_pct/total_cost_pct*conv),
+                    round(annual_cost_adjusted*overhead_pct/total_cost_pct*conv),
+                    round(annual_cost_adjusted*training_pct/total_cost_pct*conv),
+                    round(qa_cost*conv), round(compliance_cost*conv),
+                    round(tools_cost*conv), round(onboarding_cost*conv),
+                    round(shrinkage_cost*conv), round(attrition_cost_fte*conv),
+                    round(total_annual_cost_per_fte*conv)
+                ],
+                "% of Total": [
+                    f"{salary_pct/total_cost_pct*100:.1f}%",
+                    f"{benefits_pct/total_cost_pct*100:.1f}%",
+                    f"{overhead_pct/total_cost_pct*100:.1f}%",
+                    f"{training_pct/total_cost_pct*100:.1f}%",
+                    f"{qa_cost_pct:.1f}%", f"{compliance_pct:.1f}%",
+                    f"{tools_pct:.1f}%", f"{onboarding_pct:.1f}%",
+                    f"{shrinkage_rate*100:.1f}%", f"{attrition_rate*100:.1f}%",
+                    "100%"
+                ]
+            })
+            breakdown.to_excel(writer, sheet_name="Cost Breakdown", index=False)
+
+            # Sheet 4: Multi-Year Projection
+            yearly_rows = []
+            for yr in range(1, years + 1):
+                if yr == 1:
+                    yr_cost_total = final_y1_cost
+                else:
+                    yr_cost_total = total_team_cost * (1 + discount_markup / 100)
+                yr_acv = yr_cost_total / (1 - margin_decimal) if margin_decimal < 1 else 0
+                yr_margin = yr_acv - yr_cost_total
+                yearly_rows.append({
+                    "Year": yr,
+                    f"Cost ({geo_symbol})": round(yr_cost_total),
+                    f"Revenue/ACV ({geo_symbol})": round(yr_acv),
+                    f"Margin ({geo_symbol})": round(yr_margin),
+                    "Margin %": f"{(yr_margin/yr_acv*100) if yr_acv > 0 else 0:.1f}%",
+                    f"Cost ({currency_symbol})": round(yr_cost_total * conv),
+                    f"Revenue ({currency_symbol})": round(yr_acv * conv),
+                })
+            yearly_df = pd.DataFrame(yearly_rows)
+            yearly_df.to_excel(writer, sheet_name="Multi-Year Projection", index=False)
+
+            # Sheet 5: Salary Reference for selected geography
+            if geography in GEO_SALARIES:
+                sal_rows = []
+                for sk in ["Voice", "Non-voice", "Backoffice"]:
+                    for lv in ["L1", "L2", "L3", "L4", "L5", "L6"]:
+                        master_val = None
+                        if master_defaults:
+                            mkey = f"{sk}_{lv}_{geography}"
+                            if mkey in master_defaults:
+                                master_val = master_defaults[mkey]
+                        builtin_val = GEO_SALARIES.get(geography, {}).get(sk, {}).get(lv, "N/A")
+                        sal_rows.append({
+                            "Skill Type": sk, "Level": lv, "Geography": geography,
+                            f"Built-in Salary ({geo_symbol}/mo)": builtin_val,
+                            f"Master File ({geo_symbol}/mo)": master_val if master_val else "N/A",
+                            "Source Used": "Master File" if master_val else "Built-in"
+                        })
+                sal_df = pd.DataFrame(sal_rows)
+                sal_df.to_excel(writer, sheet_name="Salary Reference", index=False)
+
+            # Auto-fit column widths
+            for sheet_name in writer.sheets:
+                ws = writer.sheets[sheet_name]
+                for col_cells in ws.columns:
+                    max_len = max(len(str(cell.value or "")) for cell in col_cells)
+                    col_letter = col_cells[0].column_letter
+                    ws.column_dimensions[col_letter].width = min(max_len + 3, 40)
+
+        output.seek(0)
+        return output
+
+    file_name = f"Pricing_{skill_type}_{complexity}_{geography}_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    excel_data = generate_excel()
+    st.download_button(
+        label="📥 Download Full Pricing Sheet (Excel)",
+        data=excel_data,
+        file_name=file_name,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    st.caption(f"5 sheets: Input Parameters | Key Metrics | Cost Breakdown | {years}-Year Projection | Salary Reference")
 with tab2:
     st.header("📚 Pricing Templates")
     col1, col2 = st.columns(2)
