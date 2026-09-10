@@ -2,46 +2,92 @@ import streamlit as st
 import pandas as pd
 import json
 from datetime import datetime
+import numpy as np
 
-st.set_page_config(page_title="LBG Pricing", layout="wide")
+st.set_page_config(page_title="Enterprise Pricing", layout="wide")
 
-st.title("🎯 LBG Pricing Calculator - Enterprise Edition")
-st.markdown("**TIER 1 + TIER 2 + TIER 3 Features Enabled**")
+st.title("🎯 Enterprise Pricing Calculator - Multi-Project Hybrid Flex Edition")
+st.markdown("**Maximum Variability | Cross-Project Comparison | Advanced Scenarios**")
 st.markdown("---")
 
-# ==================== DATA ====================
-BASE_COSTS = {
-    "UK": 44200,
-    "India": 10400,
-    "Philippines": 9650,
-    "South Africa": 15600
+# ==================== PROJECT DEFINITIONS ====================
+
+PROJECTS = {
+    "LBG Fraud Proactive": {
+        "color": "🔵",
+        "base_costs": {
+            "UK": 44200,
+            "India": 10400,
+            "Philippines": 9650,
+            "South Africa": 15600
+        },
+        "regions": ["UK", "India", "Philippines", "South Africa"],
+        "delivery_models": {
+            "EB (Existing Business)": 0.95,
+            "NB_WAH (Work At Home)": 0.85,
+            "NB_WAO (Work At Office)": 1.0
+        },
+        "capabilities": {
+            "Account Servicing": 0.25,
+            "Fraud Response": 0.30,
+            "Compliance Support": 0.28,
+            "Data Analytics": 0.35
+        },
+        "channels": {
+            "Voice": 1.2,
+            "Email": 0.9,
+            "Chat": 1.0,
+            "Blended": 1.05
+        },
+        "complexity_multipliers": {
+            "Low": 1.0,
+            "Medium": 1.15,
+            "High": 1.35,
+            "Very High": 1.60
+        }
+    },
+    "Palmetto CMT": {
+        "color": "🟢",
+        "base_costs": {
+            "North America": 38000,
+            "Europe": 42000,
+            "APAC": 12000,
+            "LATAM": 11000
+        },
+        "regions": ["North America", "Europe", "APAC", "LATAM"],
+        "delivery_models": {
+            "Onshore": 1.15,
+            "Nearshore": 0.95,
+            "Offshore": 0.70
+        },
+        "capabilities": {
+            "BPO Basic": 0.22,
+            "BPO Advanced": 0.32,
+            "Technology Services": 0.38,
+            "Consulting": 0.40
+        },
+        "channels": {
+            "Phone": 1.25,
+            "Chat": 0.95,
+            "Email": 0.85,
+            "Omnichannel": 1.10
+        },
+        "complexity_multipliers": {
+            "Standard": 1.0,
+            "Complex": 1.25,
+            "Highly Complex": 1.50,
+            "Mission Critical": 1.80
+        }
+    }
 }
 
-COMPLEXITY = {
+# ==================== GLOBAL VARIABILITY FACTORS ====================
+
+COMPLEXITY_LEVELS = {
     "Low": 1.0,
     "Medium": 1.15,
     "High": 1.35,
     "Very High": 1.60
-}
-
-MARGINS = {
-    "Account Servicing": 0.25,
-    "Fraud Response": 0.30,
-    "Compliance Support": 0.28,
-    "Data Analytics": 0.35
-}
-
-DELIVERY_MODELS = {
-    "EB (Existing Business)": 0.95,
-    "NB_WAH (Work At Home)": 0.85,
-    "NB_WAO (Work At Office)": 1.0
-}
-
-CHANNELS = {
-    "Voice": 1.2,
-    "Email": 0.9,
-    "Chat": 1.0,
-    "Blended": 1.05
 }
 
 ATTRITION_RATES = {
@@ -51,116 +97,282 @@ ATTRITION_RATES = {
     "Very High (20%)": 0.20
 }
 
-# TIER 3: Pricing Tiers
-PRICING_TIERS = {
-    "Bronze": {"margin": 0.20, "sla": "Standard", "support": "Business hours"},
-    "Silver": {"margin": 0.28, "sla": "Enhanced", "support": "24/5"},
-    "Gold": {"margin": 0.35, "sla": "Premium", "support": "24/7"}
+CLIENT_TYPES = {
+    "Startup": 0.80,
+    "SMB": 0.90,
+    "Enterprise": 1.0,
+    "Fortune 500": 1.15,
+    "Government": 1.25
 }
 
-# TIER 3: Currency Conversion
+SLA_LEVELS = {
+    "Basic (95%)": 0.95,
+    "Standard (99%)": 1.0,
+    "Premium (99.5%)": 1.10,
+    "Elite (99.9%)": 1.25
+}
+
+SUPPORT_MODELS = {
+    "Business Hours": 0.85,
+    "24/5": 1.0,
+    "24/7": 1.30,
+    "24/7 + Dedicated": 1.50
+}
+
 CURRENCIES = {
     "USD": 1.0,
-    "GBP": 1.0,
+    "GBP": 1.27,
+    "EUR": 0.92,
     "INR": 82.5,
-    "PHP": 55.0
+    "PHP": 55.0,
+    "CAD": 1.36
 }
 
 CURRENCY_SYMBOLS = {
     "USD": "$",
     "GBP": "£",
+    "EUR": "€",
     "INR": "₹",
-    "PHP": "₱"
+    "PHP": "₱",
+    "CAD": "C$"
 }
 
-# ==================== SESSION STATE (TIER 3: Comparison) ====================
+PRICING_TIERS = {
+    "Bronze": {"margin": 0.20, "discount": 0.0, "description": "Standard"},
+    "Silver": {"margin": 0.28, "discount": 0.05, "description": "Enhanced"},
+    "Gold": {"margin": 0.35, "discount": 0.10, "description": "Premium"},
+    "Platinum": {"margin": 0.42, "discount": 0.15, "description": "Elite"}
+}
+
+# Additional cost components
+COST_COMPONENTS = {
+    "Salary": 0.60,
+    "Benefits": 0.12,
+    "Overhead": 0.15,
+    "Training": 0.08,
+    "Tools & Tech": 0.05
+}
+
+# ==================== SESSION STATE ====================
 if 'scenarios' not in st.session_state:
     st.session_state.scenarios = {}
 
-# ==================== MAIN TABS ====================
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Calculator", "🔄 Comparison (TIER 3)", "💎 Pricing Tiers (TIER 3)", "🌍 Multi-Currency (TIER 3)"])
+if 'saved_projects' not in st.session_state:
+    st.session_state.saved_projects = {}
 
-# ==================== TAB 1: MAIN CALCULATOR ====================
+# ==================== MAIN TABS ====================
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "📊 Calculator",
+    "🔄 Comparison",
+    "💎 Pricing Tiers",
+    "🌍 Multi-Currency",
+    "📈 Advanced Analysis",
+    "⚙️ Customization"
+])
+
+# ==================== TAB 1: CALCULATOR ====================
 with tab1:
-    st.header("📊 Main Pricing Calculator")
+    st.header("📊 Hybrid Flexibility Calculator")
     
-    col_left, col_right = st.columns([2, 1])
+    # Project Selection
+    col_proj, col_save = st.columns([3, 1])
+    with col_proj:
+        project = st.selectbox("Select Project", list(PROJECTS.keys()))
+        st.write(f"**Project:** {PROJECTS[project]['color']} {project}")
     
-    with col_left:
-        st.subheader("Deal Parameters")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            geography = st.selectbox("Geography", list(BASE_COSTS.keys()), key="calc_geo")
-            fte = st.slider("Number of FTEs", 10, 500, 50, key="calc_fte")
-            complexity = st.selectbox("Complexity Level", list(COMPLEXITY.keys()), key="calc_comp")
-            capability = st.selectbox("Capability", list(MARGINS.keys()), key="calc_cap")
-        
-        with col2:
-            years = st.slider("Contract Years", 1, 5, 3, key="calc_years")
-            delivery_model = st.selectbox("Delivery Model", list(DELIVERY_MODELS.keys()), key="calc_deliv")
-            discount_markup = st.slider("Discount/Markup (%)", -50, 50, 0, step=5, key="calc_disc")
-            channel = st.selectbox("Primary Channel", list(CHANNELS.keys()), key="calc_chan")
-        
-        st.markdown("---")
-        st.subheader("Advanced Options")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write("**Ramp-Up Schedule:**")
-            ramp_month1 = st.slider("Month 1-3 Utilization (%)", 25, 100, 50, step=5, key="ramp1")
-            ramp_month4 = st.slider("Month 4-6 Utilization (%)", 50, 100, 75, step=5, key="ramp2")
-            ramp_month7 = st.slider("Month 7+ Utilization (%)", 75, 100, 100, step=5, key="ramp3")
-        
-        with col2:
-            st.write("**Risk Factors:**")
-            attrition = st.selectbox("Annual Attrition Rate", list(ATTRITION_RATES.keys()), key="attrition")
-            currency = st.selectbox("Currency", list(CURRENCIES.keys()), key="currency")
+    with col_save:
+        scenario_name = st.text_input("Scenario Name", value=f"{project}_Scenario", key="scenario_name_main")
     
-    with col_right:
-        st.write("**Scenario Name (for saving):**")
-        scenario_name = st.text_input("Give this scenario a name", value="Scenario 1", key="scenario_name")
-        if st.button("💾 Save Scenario", key="save_scenario"):
-            st.session_state.scenarios[scenario_name] = {
-                "geography": geography,
-                "fte": fte,
-                "complexity": complexity,
-                "capability": capability,
-                "years": years,
-                "delivery_model": delivery_model,
-                "discount_markup": discount_markup,
-                "channel": channel,
-                "ramp_month1": ramp_month1,
-                "ramp_month4": ramp_month4,
-                "ramp_month7": ramp_month7,
-                "attrition": attrition,
-                "currency": currency
-            }
-            st.success(f"✅ Saved: {scenario_name}")
+    st.markdown("---")
+    
+    # SECTION 1: Core Parameters
+    st.subheader("🎯 SECTION 1: Core Pricing Parameters")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        region = st.selectbox("Region/Geography", PROJECTS[project]["regions"], key="region")
+    with col2:
+        fte = st.slider("Number of FTEs", 10, 1000, 50, key="fte")
+    with col3:
+        delivery_model = st.selectbox("Delivery Model", list(PROJECTS[project]["delivery_models"].keys()), key="delivery")
+    with col4:
+        capability = st.selectbox("Capability", list(PROJECTS[project]["capabilities"].keys()), key="capability")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        complexity = st.selectbox("Complexity Level", list(PROJECTS[project]["complexity_multipliers"].keys()), key="complexity")
+    with col2:
+        channel = st.selectbox("Primary Channel", list(PROJECTS[project]["channels"].keys()), key="channel")
+    with col3:
+        years = st.slider("Contract Duration (Years)", 1, 10, 3, key="years")
+    with col4:
+        currency = st.selectbox("Currency", list(CURRENCIES.keys()), key="currency")
+    
+    st.markdown("---")
+    
+    # SECTION 2: Financial Adjustments
+    st.subheader("💰 SECTION 2: Financial Adjustments & Pricing Multipliers")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        discount_markup = st.slider("Discount/Markup (%)", -50, 100, 0, step=5, key="discount")
+    with col2:
+        volume_discount = st.slider("Volume Discount (%)", 0, 30, 0, step=2, key="volume")
+    with col3:
+        long_term_discount = st.slider("Long-term Discount (%)", 0, 20, 0, step=2, key="longterm")
+    with col4:
+        client_type = st.selectbox("Client Type", list(CLIENT_TYPES.keys()), key="client")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        sla_level = st.selectbox("SLA Level", list(SLA_LEVELS.keys()), key="sla")
+    with col2:
+        support_model = st.selectbox("Support Model", list(SUPPORT_MODELS.keys()), key="support")
+    with col3:
+        pricing_tier = st.selectbox("Pricing Tier", list(PRICING_TIERS.keys()), key="tier")
+    with col4:
+        margin_override = st.slider("Margin Override (%)", 15, 50, 0, step=2, key="margin_override")
+    
+    st.markdown("---")
+    
+    # SECTION 3: Operational Factors
+    st.subheader("⚙️ SECTION 3: Operational & Risk Factors")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        attrition = st.selectbox("Annual Attrition Rate", list(ATTRITION_RATES.keys()), key="attrition")
+    with col2:
+        onboarding_cost_pct = st.slider("Onboarding Cost (% of salary)", 0, 50, 20, step=5, key="onboarding")
+    with col3:
+        training_depth = st.slider("Training Depth Multiplier", 0.5, 2.0, 1.0, step=0.1, key="training")
+    with col4:
+        compliance_cost = st.slider("Compliance Cost (% of total)", 0, 15, 3, step=1, key="compliance")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        quality_multiplier = st.slider("Quality/Audit Multiplier", 0.8, 1.5, 1.0, step=0.05, key="quality")
+    with col2:
+        management_overhead = st.slider("Management Overhead (% of salary)", 0, 40, 15, step=2, key="mgmt")
+    with col3:
+        travel_cost_pct = st.slider("Travel Cost (% of salary)", 0, 20, 2, step=1, key="travel")
+    with col4:
+        insurance_cost_pct = st.slider("Insurance Cost (% of salary)", 0, 10, 3, step=1, key="insurance")
+    
+    st.markdown("---")
+    
+    # SECTION 4: Ramp-Up & Utilization
+    st.subheader("📅 SECTION 4: Ramp-Up Schedule & Utilization")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.write("**Month 1-3 Utilization**")
+        ramp_m1_util = st.slider("Utilization %", 20, 100, 50, step=5, key="ramp_m1_util")
+        ramp_m1_bonus = st.slider("Ramp Bonus Cost (%)", 0, 50, 10, step=5, key="ramp_m1_bonus")
+    
+    with col2:
+        st.write("**Month 4-6 Utilization**")
+        ramp_m4_util = st.slider("Utilization %", 50, 100, 75, step=5, key="ramp_m4_util")
+        ramp_m4_bonus = st.slider("Ramp Bonus Cost (%)", 0, 30, 5, step=5, key="ramp_m4_bonus")
+    
+    with col3:
+        st.write("**Month 7+ Utilization**")
+        ramp_m7_util = st.slider("Utilization %", 75, 100, 100, step=5, key="ramp_m7_util")
+        ramp_m7_bonus = st.slider("Ramp Bonus Cost (%)", 0, 20, 0, step=5, key="ramp_m7_bonus")
+    
+    st.markdown("---")
+    
+    # SECTION 5: Retention & Incentives
+    st.subheader("🎁 SECTION 5: Retention & Performance Incentives")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        retention_bonus = st.slider("Retention Bonus (% of salary)", 0, 30, 5, step=2, key="retention")
+    with col2:
+        performance_bonus = st.slider("Performance Bonus (% of salary)", 0, 25, 3, step=2, key="performance")
+    with col3:
+        skill_premium = st.slider("Specialized Skills Premium (%)", 0, 50, 10, step=5, key="skill_premium")
+    with col4:
+        certification_cost = st.slider("Certification Cost (% of salary)", 0, 15, 2, step=1, key="certification")
+    
+    st.markdown("---")
     
     # ==================== CALCULATIONS ====================
-    base_annual_cost = BASE_COSTS[geography] * fte * COMPLEXITY[complexity] * DELIVERY_MODELS[delivery_model] * CHANNELS[channel]
-    discount_factor = 1 + (discount_markup / 100)
-    annual_cost_adjusted = base_annual_cost * discount_factor
-    attrition_rate = ATTRITION_RATES[attrition]
-    additional_attrition_cost = annual_cost_adjusted * attrition_rate
-    annual_cost_with_attrition = annual_cost_adjusted + additional_attrition_cost
-    margin_target = MARGINS[capability]
-    acv = annual_cost_with_attrition / (1 - margin_target)
-    tcv = acv * years
-    margin_dollars = acv - annual_cost_with_attrition
-    margin_pct = (margin_dollars / acv) * 100
+    
+    project_data = PROJECTS[project]
+    base_annual_cost = project_data["base_costs"][region]
+    
+    # Apply complexity, delivery, channel multipliers
+    complexity_mult = project_data["complexity_multipliers"][complexity]
+    delivery_mult = project_data["delivery_models"][delivery_model]
+    channel_mult = project_data["channels"][channel]
+    client_mult = CLIENT_TYPES[client_type]
+    sla_mult = SLA_LEVELS[sla_level]
+    support_mult = SUPPORT_MODELS[support_model]
+    
+    # Base cost per FTE with all multipliers
+    cost_per_fte = base_annual_cost * complexity_mult * delivery_mult * channel_mult * client_mult * sla_mult * support_mult
     
     # Cost breakdown
-    salary_pct, overhead_pct, training_pct = 0.65, 0.25, 0.10
-    salary_cost = annual_cost_adjusted * salary_pct
-    overhead_cost = annual_cost_adjusted * overhead_pct
-    training_cost = annual_cost_adjusted * training_pct
+    salary = cost_per_fte * 0.60
+    benefits = cost_per_fte * 0.12
+    overhead = cost_per_fte * 0.15
+    tools_tech = cost_per_fte * 0.08
+    base_training = cost_per_fte * 0.05
     
-    # Performance metrics
-    cost_per_fte = annual_cost_with_attrition / fte
-    revenue_per_fte = acv / fte
-    margin_per_fte = margin_dollars / fte
+    # Apply training depth
+    final_training = base_training * training_depth
+    
+    # Adjust for additional costs
+    onboarding = salary * (onboarding_cost_pct / 100)
+    compliance = (salary + benefits + overhead + tools_tech + final_training) * (compliance_cost / 100)
+    travel = salary * (travel_cost_pct / 100)
+    insurance_add = salary * (insurance_cost_pct / 100)
+    mgmt_overhead = salary * (management_overhead / 100)
+    quality_cost = (salary + benefits + overhead + tools_tech + final_training) * quality_multiplier
+    
+    # Total cost per FTE (annual)
+    total_cost_per_fte = (salary + benefits + overhead + tools_tech + final_training + 
+                          compliance + travel + insurance_add + mgmt_overhead)
+    
+    # Apply ramp-up costs for year 1
+    year1_adjustments = (ramp_m1_bonus + ramp_m4_bonus + ramp_m7_bonus) / 100 * salary * fte
+    
+    # Apply retention and incentives
+    retention_cost = salary * (retention_bonus / 100) * fte
+    performance_cost = salary * (performance_bonus / 100) * fte
+    skill_cost = salary * (skill_premium / 100) * fte
+    cert_cost = salary * (certification_cost / 100) * fte
+    
+    # Total annual cost per FTE
+    total_fte_cost = total_cost_per_fte * fte
+    
+    # Attrition cost
+    attrition_rate = ATTRITION_RATES[attrition]
+    additional_attrition_cost = total_fte_cost * attrition_rate
+    
+    # Total operational cost
+    total_operational_cost = total_fte_cost + additional_attrition_cost
+    
+    # Year 1 with ramp-up and incentives
+    year1_cost = total_operational_cost + year1_adjustments + retention_cost + performance_cost + skill_cost + cert_cost
+    
+    # Apply financial discounts
+    discount_factor = (1 + discount_markup / 100) * (1 - volume_discount / 100) * (1 - long_term_discount / 100)
+    year1_cost_adjusted = year1_cost * discount_factor
+    
+    # Revenue calculation
+    if margin_override > 0:
+        margin_target = margin_override / 100
+    else:
+        margin_target = project_data["capabilities"][capability]
+        if pricing_tier:
+            tier_margin = PRICING_TIERS[pricing_tier]["margin"]
+            margin_target = tier_margin
+    
+    acv = year1_cost_adjusted / (1 - margin_target)
+    tcv = acv * years
+    margin_dollars = acv - year1_cost_adjusted
+    margin_pct = (margin_dollars / acv) * 100
     
     # Apply currency conversion
     currency_factor = CURRENCIES[currency]
@@ -170,365 +382,325 @@ with tab1:
     
     currency_symbol = CURRENCY_SYMBOLS[currency]
     
-    # ==================== DISPLAY METRICS ====================
-    st.markdown("---")
-    st.subheader("💰 Key Metrics")
-    col1, col2, col3, col4 = st.columns(4)
+    # ==================== DISPLAY ====================
     
+    st.markdown("---")
+    st.subheader("💰 KEY FINANCIAL METRICS")
+    
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
-        st.metric("ACV", f"{currency_symbol}{acv_converted:,.0f}")
+        st.metric("Annual Cost", f"{currency_symbol}{year1_cost_adjusted/currency_factor:,.0f}")
     with col2:
-        st.metric("TCV", f"{currency_symbol}{tcv_converted:,.0f}")
+        st.metric("ACV", f"{currency_symbol}{acv_converted:,.0f}")
     with col3:
-        st.metric("Margin $", f"{currency_symbol}{margin_converted:,.0f}")
+        st.metric("TCV", f"{currency_symbol}{tcv_converted:,.0f}")
     with col4:
+        st.metric("Margin $", f"{currency_symbol}{margin_converted:,.0f}")
+    with col5:
         st.metric("Margin %", f"{margin_pct:.1f}%")
     
     st.markdown("---")
     
-    # Cost breakdown
-    st.subheader("📊 Cost Breakdown (TIER 1)")
-    col1, col2 = st.columns(2)
+    # Cost Breakdown
+    st.subheader("📊 Detailed Cost Breakdown")
     
-    with col1:
-        breakdown_data = {
-            "Component": ["Salary", "Overhead", "Training"],
-            "Amount": [f"{currency_symbol}{salary_cost*currency_factor:,.0f}", 
-                      f"{currency_symbol}{overhead_cost*currency_factor:,.0f}", 
-                      f"{currency_symbol}{training_cost*currency_factor:,.0f}"],
-            "% of Total": [f"{salary_pct*100:.0f}%", f"{overhead_pct*100:.0f}%", f"{training_pct*100:.0f}%"]
-        }
-        st.dataframe(pd.DataFrame(breakdown_data), use_container_width=True)
-    
-    with col2:
-        st.metric("Base Annual Cost", f"{currency_symbol}{base_annual_cost*currency_factor:,.0f}", 
-                 delta=f"{discount_markup:+.0f}% applied")
-        st.metric("Attrition Cost", f"{currency_symbol}{additional_attrition_cost*currency_factor:,.0f}", 
-                 delta=f"{attrition}")
-        st.metric("Final Annual Cost", f"{currency_symbol}{annual_cost_with_attrition*currency_factor:,.0f}")
-    
-    st.markdown("---")
-    
-    # Performance metrics
-    st.subheader("📈 Performance Metrics")
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.metric("Cost per FTE", f"{currency_symbol}{cost_per_fte*currency_factor:,.0f}")
-    with col2:
-        st.metric("Revenue per FTE", f"{currency_symbol}{revenue_per_fte*currency_factor:,.0f}")
-    with col3:
-        st.metric("Margin per FTE", f"{currency_symbol}{margin_per_fte*currency_factor:,.0f}")
-    
-    st.markdown("---")
-    
-    # Deal summary
-    st.subheader("📋 Deal Summary")
-    summary_data = {
-        "Metric": [
-            "Geography", "Delivery Model", "Channel", "FTEs", "Complexity", "Capability",
-            "Base Annual Cost", "Discount/Markup", "Attrition Rate", "Annual Cost (Final)",
-            "ACV", "TCV", "Margin Target", "Actual Margin %", "Currency"
+    breakdown = {
+        "Cost Component": [
+            "Base Salary (per FTE)",
+            "Benefits",
+            "Overhead",
+            "Tools & Technology",
+            "Training",
+            "Compliance",
+            "Travel",
+            "Insurance",
+            "Management Overhead",
+            "Quality/Audit",
+            "Onboarding (Y1 only)",
+            "---",
+            "SUBTOTAL (per FTE)",
+            "Total FTEs",
+            "Annual Cost (All FTEs)",
+            "Attrition Cost",
+            "Retention Bonus (Y1)",
+            "Performance Bonus (Y1)",
+            "Skills Premium (Y1)",
+            "Certification (Y1)",
+            "Ramp-up Adjustments (Y1)",
+            "---",
+            "YEAR 1 TOTAL",
+            "Financial Adjustments",
+            "FINAL YEAR 1 COST",
+            "---",
+            "Margin %",
+            "ACV",
+            "TCV"
         ],
         "Value": [
-            geography, delivery_model, channel, str(fte), complexity, capability,
-            f"{currency_symbol}{base_annual_cost*currency_factor:,.0f}",
-            f"{discount_markup:+.0f}%",
-            attrition,
-            f"{currency_symbol}{annual_cost_with_attrition*currency_factor:,.0f}",
-            f"{currency_symbol}{acv_converted:,.0f}",
-            f"{currency_symbol}{tcv_converted:,.0f}",
-            f"{margin_target*100:.0f}%",
+            f"{currency_symbol}{salary*currency_factor:,.0f}",
+            f"{currency_symbol}{benefits*currency_factor:,.0f}",
+            f"{currency_symbol}{overhead*currency_factor:,.0f}",
+            f"{currency_symbol}{tools_tech*currency_factor:,.0f}",
+            f"{currency_symbol}{final_training*currency_factor:,.0f}",
+            f"{currency_symbol}{compliance*currency_factor:,.0f}",
+            f"{currency_symbol}{travel*currency_factor:,.0f}",
+            f"{currency_symbol}{insurance_add*currency_factor:,.0f}",
+            f"{currency_symbol}{mgmt_overhead*currency_factor:,.0f}",
+            f"{currency_symbol}{(quality_cost/fte)*currency_factor:,.0f}",
+            f"{currency_symbol}{(onboarding/fte)*currency_factor:,.0f}",
+            "—",
+            f"{currency_symbol}{total_cost_per_fte*currency_factor:,.0f}",
+            f"{fte}",
+            f"{currency_symbol}{total_fte_cost*currency_factor:,.0f}",
+            f"{currency_symbol}{additional_attrition_cost*currency_factor:,.0f}",
+            f"{currency_symbol}{retention_cost*currency_factor:,.0f}",
+            f"{currency_symbol}{performance_cost*currency_factor:,.0f}",
+            f"{currency_symbol}{skill_cost*currency_factor:,.0f}",
+            f"{currency_symbol}{cert_cost*currency_factor:,.0f}",
+            f"{currency_symbol}{year1_adjustments*currency_factor:,.0f}",
+            "—",
+            f"{currency_symbol}{year1_cost*currency_factor:,.0f}",
+            f"{discount_markup:+.0f}% / {-volume_discount:.0f}% / {-long_term_discount:.0f}%",
+            f"{currency_symbol}{year1_cost_adjusted*currency_factor:,.0f}",
+            "—",
             f"{margin_pct:.1f}%",
-            currency
+            f"{currency_symbol}{acv_converted:,.0f}",
+            f"{currency_symbol}{tcv_converted:,.0f}"
         ]
     }
-    st.dataframe(pd.DataFrame(summary_data), use_container_width=True)
+    
+    st.dataframe(pd.DataFrame(breakdown), use_container_width=True)
     
     st.markdown("---")
     
-    # Ramp-up
-    st.subheader("📅 Ramp-Up Schedule (TIER 2)")
-    ramp_data = {
-        "Period": ["Month 1-3", "Month 4-6", "Month 7+"],
-        "Utilization": [f"{ramp_month1}%", f"{ramp_month4}%", f"{ramp_month7}%"],
-        "Adjusted FTE": [
-            f"{fte * ramp_month1 / 100:.1f}",
-            f"{fte * ramp_month4 / 100:.1f}",
-            f"{fte * ramp_month7 / 100:.1f}"
-        ]
-    }
-    st.dataframe(pd.DataFrame(ramp_data), use_container_width=True)
+    # Save scenario
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("💾 Save Scenario", key="save_main"):
+            st.session_state.scenarios[scenario_name] = {
+                "project": project,
+                "region": region,
+                "fte": fte,
+                "delivery_model": delivery_model,
+                "capability": capability,
+                "complexity": complexity,
+                "channel": channel,
+                "years": years,
+                "currency": currency,
+                "discount_markup": discount_markup,
+                "volume_discount": volume_discount,
+                "long_term_discount": long_term_discount,
+                "client_type": client_type,
+                "sla_level": sla_level,
+                "support_model": support_model,
+                "pricing_tier": pricing_tier,
+                "margin_override": margin_override,
+                "attrition": attrition,
+                "onboarding_cost_pct": onboarding_cost_pct,
+                "training_depth": training_depth,
+                "compliance_cost": compliance_cost,
+                "quality_multiplier": quality_multiplier,
+                "management_overhead": management_overhead,
+                "travel_cost_pct": travel_cost_pct,
+                "insurance_cost_pct": insurance_cost_pct,
+                "retention_bonus": retention_bonus,
+                "performance_bonus": performance_bonus,
+                "skill_premium": skill_premium,
+                "certification_cost": certification_cost,
+                "acv": acv_converted,
+                "tcv": tcv_converted,
+                "margin_pct": margin_pct
+            }
+            st.success(f"✅ Saved: {scenario_name}")
     
-    st.markdown("---")
+    with col2:
+        if st.button("📥 Export to JSON", key="export_json_main"):
+            export_data = {
+                "scenario": scenario_name,
+                "timestamp": datetime.now().isoformat(),
+                "project": project,
+                "parameters": {
+                    "region": region,
+                    "fte": fte,
+                    "complexity": complexity,
+                    "years": years,
+                    "currency": currency
+                },
+                "financial": {
+                    "annual_cost": float(year1_cost_adjusted / currency_factor),
+                    "acv": float(acv),
+                    "tcv": float(tcv),
+                    "margin_dollars": float(margin_dollars),
+                    "margin_pct": float(margin_pct)
+                }
+            }
+            
+            json_str = json.dumps(export_data, indent=2)
+            st.download_button(
+                "📥 Download JSON",
+                json_str,
+                f"{scenario_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                "application/json"
+            )
+
+
+# ==================== TAB 2: COMPARISON ====================
+with tab2:
+    st.header("🔄 Multi-Project Scenario Comparison")
     
-    # Sensitivity
-    st.subheader("🎯 Sensitivity Analysis (TIER 2)")
-    st.write("Impact on ACV if key factors change:")
+    if len(st.session_state.scenarios) == 0:
+        st.warning("⚠️ No scenarios saved yet. Create scenarios in the Calculator tab first!")
+    else:
+        scenarios_list = list(st.session_state.scenarios.keys())
+        selected = st.multiselect("Select scenarios to compare:", scenarios_list, max_selections=6)
+        
+        if selected:
+            comparison_data = []
+            for scenario_name in selected:
+                s = st.session_state.scenarios[scenario_name]
+                comparison_data.append({
+                    "Scenario": scenario_name,
+                    "Project": s["project"],
+                    "Region": s["region"],
+                    "FTEs": s["fte"],
+                    "Complexity": s["complexity"],
+                    "Annual Cost": f"{s['currency']}{s['acv']/(s['years']):,.0f}",
+                    "ACV": f"{s['currency']}{s['acv']:,.0f}",
+                    "TCV": f"{s['currency']}{s['tcv']:,.0f}",
+                    "Margin %": f"{s['margin_pct']:.1f}%"
+                })
+            
+            st.dataframe(pd.DataFrame(comparison_data), use_container_width=True)
+            
+            # Best option
+            if len(comparison_data) > 1:
+                st.subheader("🏆 Recommendations")
+                margins = [float(c["Margin %"].rstrip("%")) for c in comparison_data]
+                best_idx = margins.index(max(margins))
+                worst_idx = margins.index(min(margins))
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.success(f"**Highest Margin:** {selected[best_idx]} ({max(margins):.1f}%)")
+                with col2:
+                    st.info(f"**Lowest Margin:** {selected[worst_idx]} ({min(margins):.1f}%)")
+
+
+# ==================== TAB 3: PRICING TIERS ====================
+with tab3:
+    st.header("💎 Pricing Tier Comparison")
+    
+    project_sel = st.selectbox("Select Project:", list(PROJECTS.keys()), key="tier_project")
+    region_sel = st.selectbox("Select Region:", PROJECTS[project_sel]["regions"], key="tier_region")
+    fte_sel = st.slider("FTEs:", 10, 500, 100, key="tier_fte")
+    
+    tier_data = []
+    for tier_name, tier_info in PRICING_TIERS.items():
+        base = PROJECTS[project_sel]["base_costs"][region_sel] * fte_sel
+        margin = tier_info["margin"]
+        acv_tier = base / (1 - margin)
+        tier_data.append({
+            "Tier": tier_name,
+            "Margin": f"{margin*100:.0f}%",
+            "Discount": f"{tier_info['discount']*100:.0f}%",
+            "Description": tier_info['description'],
+            "Annual Cost": f"${base:,.0f}",
+            "ACV": f"${acv_tier:,.0f}"
+        })
+    
+    st.dataframe(pd.DataFrame(tier_data), use_container_width=True)
+
+
+# ==================== TAB 4: MULTI-CURRENCY ====================
+with tab4:
+    st.header("🌍 Multi-Currency Analysis")
+    
+    base_amount = st.number_input("Base Amount (USD):", value=100000, step=1000)
+    
+    curr_data = []
+    for curr, factor in CURRENCIES.items():
+        symbol = CURRENCY_SYMBOLS[curr]
+        curr_data.append({
+            "Currency": curr,
+            "Symbol": symbol,
+            "Converted Amount": f"{symbol}{base_amount * factor:,.0f}",
+            "Rate": f"{factor}x"
+        })
+    
+    st.dataframe(pd.DataFrame(curr_data), use_container_width=True)
+
+
+# ==================== TAB 5: ADVANCED ANALYSIS ====================
+with tab5:
+    st.header("📈 Advanced Scenario Analysis")
+    
+    st.subheader("What-If Analysis")
+    
+    if len(st.session_state.scenarios) > 0:
+        base_scenario = st.selectbox("Base Scenario:", list(st.session_state.scenarios.keys()), key="whatif_scenario")
+        base_data = st.session_state.scenarios[base_scenario]
+        
+        # FTE variation
+        st.write("**FTE Sensitivity:**")
+        fte_scenarios = [base_data["fte"] * 0.8, base_data["fte"], base_data["fte"] * 1.2]
+        
+        whatif_results = []
+        for fte_var in fte_scenarios:
+            # Simplified calculation for comparison
+            factor = fte_var / base_data["fte"]
+            whatif_results.append({
+                "FTE Scenario": f"{int(fte_var)}",
+                "Change": f"{(factor-1)*100:+.0f}%",
+                "Est. ACV": f"${base_data['acv'] * factor:,.0f}",
+                "Est. Margin $": f"${(base_data['acv'] - (base_data['acv']/(1-base_data['margin_pct']/100))) * factor:,.0f}"
+            })
+        
+        st.dataframe(pd.DataFrame(whatif_results), use_container_width=True)
+    else:
+        st.warning("Create a scenario first to enable What-If analysis")
+
+
+# ==================== TAB 6: CUSTOMIZATION ====================
+with tab6:
+    st.header("⚙️ Customization & Extensibility")
+    
+    st.subheader("Add New Project")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        fte_scenarios = [fte * 0.8, fte, fte * 1.2]
-        fte_acv = []
-        for scenario_fte in fte_scenarios:
-            scenario_cost = BASE_COSTS[geography] * scenario_fte * COMPLEXITY[complexity] * DELIVERY_MODELS[delivery_model]
-            scenario_acv = scenario_cost / (1 - margin_target)
-            fte_acv.append(scenario_acv)
-        
-        sensitivity_fte = {
-            "FTE Scenario": [f"{int(fte * 0.8)}", f"{int(fte)}", f"{int(fte * 1.2)}"],
-            "ACV": [f"{currency_symbol}{x*currency_factor:,.0f}" for x in fte_acv],
-            "Change": [f"{((fte_acv[i] / acv) - 1) * 100:+.1f}%" for i in range(3)]
-        }
-        st.write("**FTE Impact:**")
-        st.dataframe(pd.DataFrame(sensitivity_fte), use_container_width=True)
+        new_project_name = st.text_input("New Project Name:")
+        new_project_regions = st.text_input("Regions (comma-separated):", "Region1, Region2, Region3")
+        new_project_base_cost = st.number_input("Base Cost (USD):", value=40000, step=1000)
     
     with col2:
-        complexity_scenarios = ["Low", "Medium", "High", "Very High"]
-        complexity_acv = []
-        for comp_scenario in complexity_scenarios:
-            scenario_cost = BASE_COSTS[geography] * fte * COMPLEXITY[comp_scenario] * DELIVERY_MODELS[delivery_model]
-            scenario_acv = scenario_cost / (1 - margin_target)
-            complexity_acv.append(scenario_acv)
-        
-        sensitivity_complexity = {
-            "Complexity": complexity_scenarios,
-            "ACV": [f"{currency_symbol}{x*currency_factor:,.0f}" for x in complexity_acv],
-            "Change": [f"{((complexity_acv[i] / acv) - 1) * 100:+.1f}%" for i in range(4)]
-        }
-        st.write("**Complexity Impact:**")
-        st.dataframe(pd.DataFrame(sensitivity_complexity), use_container_width=True)
+        if st.button("➕ Add Project"):
+            if new_project_name and new_project_regions:
+                regions_list = [r.strip() for r in new_project_regions.split(",")]
+                new_proj_data = {
+                    "color": "🟡",
+                    "base_costs": {r: new_project_base_cost for r in regions_list},
+                    "regions": regions_list,
+                    "delivery_models": {"Standard": 1.0, "Premium": 1.2},
+                    "capabilities": {"Basic": 0.25, "Advanced": 0.35},
+                    "channels": {"Standard": 1.0, "Omnichannel": 1.15},
+                    "complexity_multipliers": {"Standard": 1.0, "Complex": 1.3}
+                }
+                st.session_state.saved_projects[new_project_name] = new_proj_data
+                st.success(f"✅ Added project: {new_project_name}")
     
     st.markdown("---")
     
-    # Multi-year projection
-    st.subheader("📈 Multi-Year Projection")
-    projection_rows = []
-    cumulative_cost = 0
-    cumulative_revenue = 0
-    
-    for year in range(1, years + 1):
-        year_acv = acv * (1.03 ** (year - 1))
-        year_cost = annual_cost_with_attrition * (1.03 ** (year - 1))
-        year_margin = year_acv - year_cost
-        
-        cumulative_cost += year_cost
-        cumulative_revenue += year_acv
-        
-        projection_rows.append({
-            "Year": year,
-            "Revenue": f"{currency_symbol}{year_acv*currency_factor:,.0f}",
-            "Cost": f"{currency_symbol}{year_cost*currency_factor:,.0f}",
-            "Margin": f"{currency_symbol}{year_margin*currency_factor:,.0f}",
-            "Cumulative Revenue": f"{currency_symbol}{cumulative_revenue*currency_factor:,.0f}",
-            "Cumulative Margin": f"{currency_symbol}{(cumulative_revenue - cumulative_cost)*currency_factor:,.0f}"
-        })
-    
-    st.dataframe(pd.DataFrame(projection_rows), use_container_width=True)
-    
-    st.markdown("---")
-    
-    # Export
-    st.subheader("💾 Export & Share (TIER 1)")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        export_data = {
-            "Parameter": [
-                "Geography", "Delivery Model", "Channel", "FTEs", "Complexity", "Capability",
-                "Base Annual Cost", "Discount/Markup", "Attrition Rate", "Final Annual Cost",
-                "ACV", "TCV", "Margin %", "Cost per FTE", "Revenue per FTE", "Currency"
-            ],
-            "Value": [
-                geography, delivery_model, channel, fte, complexity, capability,
-                f"{base_annual_cost*currency_factor:.2f}", f"{discount_markup}%", attrition, 
-                f"{annual_cost_with_attrition*currency_factor:.2f}",
-                f"{acv_converted:.2f}", f"{tcv_converted:.2f}", f"{margin_pct:.2f}", 
-                f"{cost_per_fte*currency_factor:.2f}", f"{revenue_per_fte*currency_factor:.2f}", currency
-            ]
-        }
-        
-        csv_data = pd.DataFrame(export_data).to_csv(index=False)
-        st.download_button(
-            label="📥 Download CSV",
-            data=csv_data,
-            file_name=f"lbg_pricing_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv"
-        )
-    
-    with col2:
-        json_data = {
-            "metadata": {
-                "created": datetime.now().isoformat(),
-                "geography": geography,
-                "delivery_model": delivery_model,
-                "currency": currency
-            },
-            "inputs": {
-                "fte": fte,
-                "complexity": complexity,
-                "capability": capability,
-                "years": years,
-                "discount_markup": discount_markup,
-                "attrition": attrition
-            },
-            "outputs": {
-                "base_annual_cost": float(base_annual_cost * currency_factor),
-                "annual_cost": float(annual_cost_with_attrition * currency_factor),
-                "acv": float(acv_converted),
-                "tcv": float(tcv_converted),
-                "margin_dollars": float(margin_converted),
-                "margin_pct": float(margin_pct)
-            }
-        }
-        
-        json_export = json.dumps(json_data, indent=2)
-        st.download_button(
-            label="📥 Download JSON",
-            data=json_export,
-            file_name=f"lbg_pricing_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-            mime="application/json"
-        )
-    
-    with col3:
-        st.info("✅ **Data Ready**\n\nDownload scenarios for sharing")
-
-
-# ==================== TAB 2: COMPARISON MODE (TIER 3) ====================
-with tab2:
-    st.header("🔄 Scenario Comparison (TIER 3)")
-    
-    if len(st.session_state.scenarios) == 0:
-        st.warning("⚠️ No scenarios saved yet. Create and save scenarios in the Calculator tab first!")
+    st.subheader("Saved Custom Projects")
+    if st.session_state.saved_projects:
+        for proj_name, proj_data in st.session_state.saved_projects.items():
+            st.write(f"**{proj_name}** - Regions: {', '.join(proj_data['regions'])}")
     else:
-        st.write(f"**Saved Scenarios:** {len(st.session_state.scenarios)}")
-        
-        scenarios_to_compare = st.multiselect(
-            "Select 2-4 scenarios to compare:",
-            options=list(st.session_state.scenarios.keys()),
-            max_selections=4
-        )
-        
-        if scenarios_to_compare:
-            comparison_results = []
-            
-            for scenario_name in scenarios_to_compare:
-                params = st.session_state.scenarios[scenario_name]
-                
-                # Calculate for each scenario
-                base_cost = BASE_COSTS[params["geography"]] * params["fte"] * COMPLEXITY[params["complexity"]] * DELIVERY_MODELS[params["delivery_model"]] * CHANNELS[params["channel"]]
-                adjusted_cost = base_cost * (1 + params["discount_markup"] / 100)
-                attrition_cost = adjusted_cost * ATTRITION_RATES[params["attrition"]]
-                final_cost = adjusted_cost + attrition_cost
-                margin = MARGINS[params["capability"]]
-                acv_scenario = final_cost / (1 - margin)
-                tcv_scenario = acv_scenario * params["years"]
-                margin_dollars_scenario = acv_scenario - final_cost
-                margin_pct_scenario = (margin_dollars_scenario / acv_scenario) * 100
-                
-                currency_factor = CURRENCIES[params["currency"]]
-                currency_sym = CURRENCY_SYMBOLS[params["currency"]]
-                
-                comparison_results.append({
-                    "Scenario": scenario_name,
-                    "Geography": params["geography"],
-                    "FTEs": params["fte"],
-                    "Complexity": params["complexity"],
-                    "Annual Cost": f"{currency_sym}{final_cost*currency_factor:,.0f}",
-                    "ACV": f"{currency_sym}{acv_scenario*currency_factor:,.0f}",
-                    "TCV": f"{currency_sym}{tcv_scenario*currency_factor:,.0f}",
-                    "Margin %": f"{margin_pct_scenario:.1f}%"
-                })
-            
-            st.subheader("📊 Side-by-Side Comparison")
-            st.dataframe(pd.DataFrame(comparison_results), use_container_width=True)
-            
-            # Find best option
-            if len(comparison_results) > 1:
-                st.subheader("🏆 Recommendation")
-                best_margin = max([float(r["Margin %"].rstrip("%")) for r in comparison_results])
-                best_scenario = [r["Scenario"] for r in comparison_results if float(r["Margin %"].rstrip("%")) == best_margin][0]
-                st.success(f"**Highest Margin:** {best_scenario} ({best_margin:.1f}%)")
-
-
-# ==================== TAB 3: PRICING TIERS (TIER 3) ====================
-with tab3:
-    st.header("💎 Pricing Tiers (TIER 3)")
-    
-    st.write("Compare our three service tiers:")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    tier_geographies = st.selectbox("Compare tiers for:", list(BASE_COSTS.keys()), key="tier_geo")
-    tier_fte = st.slider("Number of FTEs:", 10, 500, 50, key="tier_fte")
-    tier_complexity = st.selectbox("Complexity:", list(COMPLEXITY.keys()), key="tier_comp")
-    tier_years = st.slider("Contract Years:", 1, 5, 3, key="tier_years")
-    
-    tier_results = []
-    
-    for tier_name, tier_info in PRICING_TIERS.items():
-        base = BASE_COSTS[tier_geographies] * tier_fte * COMPLEXITY[tier_complexity]
-        margin = tier_info["margin"]
-        acv_tier = base / (1 - margin)
-        tcv_tier = acv_tier * tier_years
-        margin_dollars_tier = acv_tier - base
-        
-        tier_results.append({
-            "Tier": tier_name,
-            "SLA": tier_info["sla"],
-            "Support": tier_info["support"],
-            "Margin Target": f"{margin*100:.0f}%",
-            "Annual Cost": f"${base:,.0f}",
-            "ACV": f"${acv_tier:,.0f}",
-            "TCV": f"${tcv_tier:,.0f}",
-            "Margin $": f"${margin_dollars_tier:,.0f}"
-        })
-    
-    st.subheader("📊 Pricing Tier Comparison")
-    st.dataframe(pd.DataFrame(tier_results), use_container_width=True)
-    
-    st.info("💡 **Recommendation:** Choose Bronze for price-sensitive, Gold for premium customers")
-
-
-# ==================== TAB 4: MULTI-CURRENCY (TIER 3) ====================
-with tab4:
-    st.header("🌍 Multi-Currency Support (TIER 3)")
-    
-    st.write("View pricing in different currencies with real-time conversion.")
-    
-    multi_geo = st.selectbox("Geography:", list(BASE_COSTS.keys()), key="multi_geo")
-    multi_fte = st.slider("FTEs:", 10, 500, 50, key="multi_fte")
-    multi_comp = st.selectbox("Complexity:", list(COMPLEXITY.keys()), key="multi_comp")
-    multi_cap = st.selectbox("Capability:", list(MARGINS.keys()), key="multi_cap")
-    
-    base = BASE_COSTS[multi_geo] * multi_fte * COMPLEXITY[multi_comp]
-    margin = MARGINS[multi_cap]
-    acv_base = base / (1 - margin)
-    
-    currency_results = []
-    
-    for curr, factor in CURRENCIES.items():
-        symbol = CURRENCY_SYMBOLS[curr]
-        currency_results.append({
-            "Currency": curr,
-            "Symbol": symbol,
-            "Annual Cost": f"{symbol}{base*factor:,.0f}",
-            "ACV": f"{symbol}{acv_base*factor:,.0f}",
-            "Conversion Factor": f"{factor}x"
-        })
-    
-    st.subheader("💱 Currency Conversion Table")
-    st.dataframe(pd.DataFrame(currency_results), use_container_width=True)
-    
-    st.info("📌 **Conversion Rates:** Based on current market rates (USD base)")
+        st.info("No custom projects yet")
 
 
 # ==================== FOOTER ====================
 st.markdown("---")
-col1, col2 = st.columns(2)
-with col1:
-    st.success("✅ **LBG Pricing Calculator - Enterprise Edition**")
-with col2:
-    st.caption("🚀 TIER 1 + TIER 2 + TIER 3 Features | Multi-Currency | Comparison Mode | Pricing Tiers")
+st.success("✅ **Enterprise Pricing Calculator - Hybrid Flexibility Edition**")
+st.caption("🚀 MAXIMUM VARIABILITY | Multi-Project | Advanced Scenarios | Cross-Project Comparison")
+st.caption(f"📊 Saved Scenarios: {len(st.session_state.scenarios)} | Custom Projects: {len(st.session_state.saved_projects)}")
