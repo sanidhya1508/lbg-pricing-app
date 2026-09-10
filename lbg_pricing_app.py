@@ -11,55 +11,64 @@ st.title("🎯 Dynamic Pricing Platform - Template Edition")
 st.markdown("**Master Template | Auto-Populated Defaults | Maximum Flexibility**")
 st.markdown("---")
 
-# ==================== LOAD MASTER FILE & EXTRACT DEFAULTS ====================
+# ==================== LOAD MASTER FILE & EXTRACT DEFAULTS FROM GEO SHEETS ====================
 
 @st.cache_data
 def load_master_defaults():
-    """Load salary defaults from master pricing file"""
+    """Load salary defaults from geography-specific salary sheets"""
     try:
         import openpyxl
         
-        # Try to load the file
         file_path = "Pricing_Master_Feb_26_v10.xlsm"
         wb = openpyxl.load_workbook(file_path, data_only=True)
         
         salary_defaults = {}
         
-        # Extract from Rate Chart sheet
-        if 'Rate Chart' in wb.sheetnames:
-            ws = wb['Rate Chart']
-            
-            for row in ws.iter_rows(min_row=3, max_row=20, values_only=True):
-                if row[0] and row[1] and row[3]:  # Skill, Complexity, Location
-                    skill_type = row[0]  # Voice, Non-voice, Backoffice
-                    complexity = row[1]  # L1, L2, L3, etc
-                    location = row[3]    # Phil, India, UK, etc
-                    salary = row[5]      # Monthly Salary
-                    ftes = row[6]        # FTEs
-                    rate_per_hr = row[7] # Rate/Paid Hr
-                    
-                    # Map location codes
-                    location_map = {
-                        "Phil": "PHP",
-                        "India": "IND",
-                        "UK": "UK",
-                        "US": "US",
-                        "Mexico": "MEX",
-                        "Australia": "AUS",
-                        "South Africa": "SA",
-                        "Romania": "ROM",
-                        "T&T": "TT"
-                    }
-                    
-                    loc_code = location_map.get(location, location)
-                    
-                    if salary and salary > 0:
-                        key = f"{skill_type}_{complexity}_{loc_code}"
-                        salary_defaults[key] = {
-                            "salary": float(salary),
-                            "ftes": float(ftes) if ftes else 50,
-                            "rate_per_hr": float(rate_per_hr) if rate_per_hr else 0
-                        }
+        # Map sheet names to geography codes
+        sheet_geo_map = {
+            "US Salary": "US",
+            "UK Salary": "UK",
+            "SA Salary": "SA",
+            "Mexico Salary": "MEX",
+            "Aus Salary": "AUS",
+            "Salary PHP": "PHP",
+            "IND Salary": "IND",
+            "ROM Salary": "ROM",
+            "T&T Salary": "TT"
+        }
+        
+        # Extract from each geography sheet
+        for sheet_name, geo_code in sheet_geo_map.items():
+            if sheet_name in wb.sheetnames:
+                ws = wb[sheet_name]
+                
+                for row in ws.iter_rows(min_row=2, max_row=50, values_only=True):
+                    if len(row) >= 4 and row[0] and row[1]:  # Skill type and Complexity
+                        skill_type = row[0]  # Voice, Non-voice, Backoffice
+                        complexity = row[1]  # L1, L2, L3, etc
+                        
+                        # Salary is typically in a column (varies by sheet, but usually column index 2-4)
+                        # Try different column indices
+                        salary = None
+                        ftes = None
+                        
+                        # Try to find salary value (usually in columns 2-5)
+                        for col_idx in [2, 3, 4, 5]:
+                            if col_idx < len(row) and row[col_idx]:
+                                try:
+                                    val = float(row[col_idx]) if row[col_idx] else None
+                                    if val and val > 100:  # Salary should be > 100
+                                        salary = val
+                                        break
+                                except:
+                                    pass
+                        
+                        if salary and salary > 0:
+                            key = f"{skill_type}_{complexity}_{geo_code}"
+                            salary_defaults[key] = {
+                                "salary": float(salary),
+                                "ftes": 50  # Default FTE
+                            }
         
         if len(salary_defaults) > 0:
             st.session_state.defaults_loaded = True
@@ -180,11 +189,11 @@ RISK_CATEGORIES = {
 # ==================== HELPER FUNCTION TO GET DEFAULTS ====================
 
 def get_salary_default(skill_type, complexity, geography):
-    """Get salary default from master file or fallback to predefined"""
+    """Get salary default from master file geography sheets"""
     if master_defaults:
         key = f"{skill_type}_{complexity}_{geography}"
         if key in master_defaults:
-            return master_defaults[key]["salary"]
+            return int(master_defaults[key]["salary"])
     
     # Fallback to predefined defaults
     return GEOGRAPHIES[geography]['base_salary']
@@ -217,7 +226,7 @@ with tab1:
     
     # Show if master file loaded
     if master_defaults:
-        st.info("✅ Master file loaded - Salary defaults auto-populated")
+        st.success("✅ Master file loaded - Salary defaults from geography sheets")
     else:
         st.warning("⚠️ Master file not found - Using fallback defaults (upload Pricing_Master_Feb_26_v10.xlsm to directory)")
     
@@ -244,10 +253,11 @@ with tab1:
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        base_salary = st.number_input("Base Monthly Salary", value=int(default_salary), step=1000, key="salary")
-        st.caption("✅ Auto-populated from master" if master_defaults else "📋 Fallback value")
+        base_salary = st.number_input("Base Monthly Salary", value=default_salary, step=1000, key="salary", min_value=1000)
+        st.caption("✅ From master geo sheet" if master_defaults else "📋 Fallback value")
     with col2:
-        ftes = st.slider("Number of FTEs/Agents", 10, 2000, 100, step=10, key="ftes")
+        ftes = st.number_input("Number of FTEs/Agents", value=100, step=10, key="ftes", min_value=1, max_value=5000)
+        st.caption("📝 Editable field")
     with col3:
         wfo_model = st.selectbox("WFO/WFH Model", list(WFO_OPTIONS.keys()), key="wfo")
     with col4:
@@ -793,6 +803,6 @@ with tab8:
 
 # ==================== FOOTER ====================
 st.markdown("---")
-st.success("✅ **Dynamic Pricing Platform - Auto-Populated Defaults**")
-st.caption("🎯 Master File Integrated | L1-L6 Salary Lookups | 9 Geographies | Advanced Analytics")
+st.success("✅ **Dynamic Pricing Platform - Auto-Populated Geo Defaults**")
+st.caption("🎯 Geography Salary Sheets | L1-L6 Auto-Lookup | Editable FTE | 9 Geographies | Advanced Analytics")
 st.caption(f"📊 Active Scenarios: {len(st.session_state.scenarios)} | Templates: {len(st.session_state.templates)}")
