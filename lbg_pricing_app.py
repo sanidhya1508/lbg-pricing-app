@@ -8,11 +8,74 @@ import io
 st.set_page_config(page_title="Enterprise Pricing Platform", layout="wide")
 
 st.title("🎯 Dynamic Pricing Platform - Template Edition")
-st.markdown("**Master Template | Any Project Type | Maximum Flexibility**")
+st.markdown("**Master Template | Auto-Populated Defaults | Maximum Flexibility**")
 st.markdown("---")
 
+# ==================== LOAD MASTER FILE & EXTRACT DEFAULTS ====================
+
+@st.cache_data
+def load_master_defaults():
+    """Load salary defaults from master pricing file"""
+    try:
+        import openpyxl
+        
+        # Try to load the file
+        file_path = "Pricing_Master_Feb_26_v10.xlsm"
+        wb = openpyxl.load_workbook(file_path, data_only=True)
+        
+        salary_defaults = {}
+        
+        # Extract from Rate Chart sheet
+        if 'Rate Chart' in wb.sheetnames:
+            ws = wb['Rate Chart']
+            
+            for row in ws.iter_rows(min_row=3, max_row=20, values_only=True):
+                if row[0] and row[1] and row[3]:  # Skill, Complexity, Location
+                    skill_type = row[0]  # Voice, Non-voice, Backoffice
+                    complexity = row[1]  # L1, L2, L3, etc
+                    location = row[3]    # Phil, India, UK, etc
+                    salary = row[5]      # Monthly Salary
+                    ftes = row[6]        # FTEs
+                    rate_per_hr = row[7] # Rate/Paid Hr
+                    
+                    # Map location codes
+                    location_map = {
+                        "Phil": "PHP",
+                        "India": "IND",
+                        "UK": "UK",
+                        "US": "US",
+                        "Mexico": "MEX",
+                        "Australia": "AUS",
+                        "South Africa": "SA",
+                        "Romania": "ROM",
+                        "T&T": "TT"
+                    }
+                    
+                    loc_code = location_map.get(location, location)
+                    
+                    if salary and salary > 0:
+                        key = f"{skill_type}_{complexity}_{loc_code}"
+                        salary_defaults[key] = {
+                            "salary": float(salary),
+                            "ftes": float(ftes) if ftes else 50,
+                            "rate_per_hr": float(rate_per_hr) if rate_per_hr else 0
+                        }
+        
+        if len(salary_defaults) > 0:
+            st.session_state.defaults_loaded = True
+            return salary_defaults
+        else:
+            st.session_state.defaults_loaded = False
+            return None
+            
+    except Exception as e:
+        st.session_state.defaults_loaded = False
+        return None
+
+# Load defaults on startup
+master_defaults = load_master_defaults()
+
 # ==================== PREDEFINED DATA ====================
-# Based on master file structure
 
 GEOGRAPHIES = {
     "IND": {"name": "India (Mumbai, Bangalore)", "currency": "INR", "base_salary": 15000},
@@ -27,9 +90,9 @@ GEOGRAPHIES = {
 }
 
 SKILL_TYPES = {
-    "Voice": {"description": "Voice/Phone Support", "color": "🎧", "icon": "☎️"},
-    "Non-Voice": {"description": "Chat/Email/Digital", "color": "💬", "icon": "💻"},
-    "Backoffice": {"description": "Back Office/Processing", "color": "📋", "icon": "📊"}
+    "Voice": {"description": "Voice/Phone Support", "icon": "☎️"},
+    "Non-voice": {"description": "Chat/Email/Digital", "icon": "💻"},
+    "Backoffice": {"description": "Back Office/Processing", "icon": "📊"}
 }
 
 COMPLEXITY_LEVELS = {
@@ -114,6 +177,18 @@ RISK_CATEGORIES = {
     }
 }
 
+# ==================== HELPER FUNCTION TO GET DEFAULTS ====================
+
+def get_salary_default(skill_type, complexity, geography):
+    """Get salary default from master file or fallback to predefined"""
+    if master_defaults:
+        key = f"{skill_type}_{complexity}_{geography}"
+        if key in master_defaults:
+            return master_defaults[key]["salary"]
+    
+    # Fallback to predefined defaults
+    return GEOGRAPHIES[geography]['base_salary']
+
 # ==================== SESSION STATE ====================
 if 'scenarios' not in st.session_state:
     st.session_state.scenarios = {}
@@ -140,6 +215,14 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
 with tab1:
     st.header("📊 Dynamic Pricing Calculator")
     
+    # Show if master file loaded
+    if master_defaults:
+        st.info("✅ Master file loaded - Salary defaults auto-populated")
+    else:
+        st.warning("⚠️ Master file not found - Using fallback defaults (upload Pricing_Master_Feb_26_v10.xlsm to directory)")
+    
+    st.markdown("---")
+    
     col1, col2, col3 = st.columns([2, 2, 2])
     
     with col1:
@@ -156,9 +239,13 @@ with tab1:
     
     st.markdown("---")
     
+    # Get auto-populated default salary
+    default_salary = get_salary_default(skill_type, complexity, geography)
+    
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        base_salary = st.number_input("Base Monthly Salary", value=GEOGRAPHIES[geography]['base_salary'], step=1000, key="salary")
+        base_salary = st.number_input("Base Monthly Salary", value=int(default_salary), step=1000, key="salary")
+        st.caption("✅ Auto-populated from master" if master_defaults else "📋 Fallback value")
     with col2:
         ftes = st.slider("Number of FTEs/Agents", 10, 2000, 100, step=10, key="ftes")
     with col3:
@@ -409,7 +496,7 @@ with tab2:
         quick_templates = {
             "Voice L1 (India)": {"skill_type": "Voice", "complexity": "L1", "geography": "IND", "margin_target": 30},
             "Backoffice L2 (Philippines)": {"skill_type": "Backoffice", "complexity": "L2", "geography": "PHP", "margin_target": 35},
-            "Non-Voice L3 (US)": {"skill_type": "Non-Voice", "complexity": "L3", "geography": "US", "margin_target": 28}
+            "Non-voice L3 (US)": {"skill_type": "Non-voice", "complexity": "L3", "geography": "US", "margin_target": 28}
         }
         
         for template_name, template in quick_templates.items():
@@ -700,11 +787,12 @@ with tab8:
     with col2:
         st.metric("Saved Templates", len(st.session_state.templates))
     with col3:
-        st.metric("Risk Assessments", len(st.session_state.risk_assessments))
+        status = "✅ Connected" if master_defaults else "⚠️ Using Fallback"
+        st.metric("Master File", status)
 
 
 # ==================== FOOTER ====================
 st.markdown("---")
-st.success("✅ **Dynamic Pricing Platform - Template Edition**")
-st.caption("🎯 Template-Based | 9 Geographies | 3 Skill Types | 6 Complexity Levels | Advanced Analytics")
+st.success("✅ **Dynamic Pricing Platform - Auto-Populated Defaults**")
+st.caption("🎯 Master File Integrated | L1-L6 Salary Lookups | 9 Geographies | Advanced Analytics")
 st.caption(f"📊 Active Scenarios: {len(st.session_state.scenarios)} | Templates: {len(st.session_state.templates)}")
