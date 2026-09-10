@@ -6,8 +6,8 @@ import numpy as np
 
 st.set_page_config(page_title="Enterprise Pricing", layout="wide")
 
-st.title("🎯 Enterprise Pricing Calculator - Multi-Project Hybrid Flex Edition")
-st.markdown("**Maximum Variability | Cross-Project Comparison | Advanced Scenarios**")
+st.title("🎯 Enterprise Pricing Calculator - 3-Project Edition")
+st.markdown("**LBG | Palmetto | BCBS | Hybrid Flexibility | Maximum Variability**")
 st.markdown("---")
 
 # ==================== PROJECT DEFINITIONS ====================
@@ -15,6 +15,8 @@ st.markdown("---")
 PROJECTS = {
     "LBG Fraud Proactive": {
         "color": "🔵",
+        "icon": "🛡️",
+        "description": "Fraud Detection & Compliance Services",
         "base_costs": {
             "UK": 44200,
             "India": 10400,
@@ -48,6 +50,8 @@ PROJECTS = {
     },
     "Palmetto CMT": {
         "color": "🟢",
+        "icon": "💼",
+        "description": "Business Process Outsourcing & Tech Services",
         "base_costs": {
             "North America": 38000,
             "Europe": 42000,
@@ -78,6 +82,42 @@ PROJECTS = {
             "Highly Complex": 1.50,
             "Mission Critical": 1.80
         }
+    },
+    "BCBS Telesales": {
+        "color": "🟡",
+        "icon": "☎️",
+        "description": "Telesales & Contact Center Operations",
+        "base_costs": {
+            "United States": 28000,
+            "Canada": 32000,
+            "UK": 38000,
+            "India": 8500,
+            "Philippines": 7800
+        },
+        "regions": ["United States", "Canada", "UK", "India", "Philippines"],
+        "delivery_models": {
+            "Dedicated": 1.10,
+            "Shared": 0.85,
+            "Flexible": 0.95
+        },
+        "capabilities": {
+            "Outbound Campaigns": 0.20,
+            "Inbound Support": 0.25,
+            "Sales Development": 0.32,
+            "Premium Services": 0.38
+        },
+        "channels": {
+            "Phone": 1.30,
+            "Chat Support": 0.80,
+            "Email": 0.70,
+            "Multi-channel": 1.05
+        },
+        "complexity_multipliers": {
+            "Basic": 1.0,
+            "Standard": 1.10,
+            "Advanced": 1.30,
+            "Enterprise": 1.50
+        }
     }
 }
 
@@ -94,7 +134,8 @@ ATTRITION_RATES = {
     "Low (5%)": 0.05,
     "Medium (10%)": 0.10,
     "High (15%)": 0.15,
-    "Very High (20%)": 0.20
+    "Very High (20%)": 0.20,
+    "Critical (25%)": 0.25
 }
 
 CLIENT_TYPES = {
@@ -153,6 +194,19 @@ COST_COMPONENTS = {
     "Tools & Tech": 0.05
 }
 
+# Contact Center Specific Factors
+QA_SCORING_LEVELS = {
+    "Basic QA (95%)": 0.05,
+    "Standard QA (98%)": 0.10,
+    "Premium QA (99%+)": 0.15
+}
+
+ADHERENCE_FACTORS = {
+    "Flexible": 0.90,
+    "Standard": 1.0,
+    "Strict": 1.15
+}
+
 # ==================== SESSION STATE ====================
 if 'scenarios' not in st.session_state:
     st.session_state.scenarios = {}
@@ -161,12 +215,13 @@ if 'saved_projects' not in st.session_state:
     st.session_state.saved_projects = {}
 
 # ==================== MAIN TABS ====================
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "📊 Calculator",
     "🔄 Comparison",
     "💎 Pricing Tiers",
     "🌍 Multi-Currency",
     "📈 Advanced Analysis",
+    "☎️ Contact Center Analytics",
     "⚙️ Customization"
 ])
 
@@ -175,10 +230,14 @@ with tab1:
     st.header("📊 Hybrid Flexibility Calculator")
     
     # Project Selection
-    col_proj, col_save = st.columns([3, 1])
+    col_proj, col_info, col_save = st.columns([2, 2, 2])
     with col_proj:
-        project = st.selectbox("Select Project", list(PROJECTS.keys()))
-        st.write(f"**Project:** {PROJECTS[project]['color']} {project}")
+        project = st.selectbox("🎯 Select Project", list(PROJECTS.keys()))
+        project_info = PROJECTS[project]
+    
+    with col_info:
+        st.write(f"**{project_info['color']} {project}**")
+        st.caption(project_info['description'])
     
     with col_save:
         scenario_name = st.text_input("Scenario Name", value=f"{project}_Scenario", key="scenario_name_main")
@@ -190,19 +249,19 @@ with tab1:
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        region = st.selectbox("Region/Geography", PROJECTS[project]["regions"], key="region")
+        region = st.selectbox("Region/Geography", project_info["regions"], key="region")
     with col2:
-        fte = st.slider("Number of FTEs", 10, 1000, 50, key="fte")
+        fte = st.slider("Number of Agents/FTEs", 10, 2000, 100, step=10, key="fte")
     with col3:
-        delivery_model = st.selectbox("Delivery Model", list(PROJECTS[project]["delivery_models"].keys()), key="delivery")
+        delivery_model = st.selectbox("Delivery Model", list(project_info["delivery_models"].keys()), key="delivery")
     with col4:
-        capability = st.selectbox("Capability", list(PROJECTS[project]["capabilities"].keys()), key="capability")
+        capability = st.selectbox("Capability/Service Type", list(project_info["capabilities"].keys()), key="capability")
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        complexity = st.selectbox("Complexity Level", list(PROJECTS[project]["complexity_multipliers"].keys()), key="complexity")
+        complexity = st.selectbox("Complexity Level", list(project_info["complexity_multipliers"].keys()), key="complexity")
     with col2:
-        channel = st.selectbox("Primary Channel", list(PROJECTS[project]["channels"].keys()), key="channel")
+        channel = st.selectbox("Primary Channel", list(project_info["channels"].keys()), key="channel")
     with col3:
         years = st.slider("Contract Duration (Years)", 1, 10, 3, key="years")
     with col4:
@@ -294,23 +353,52 @@ with tab1:
     with col4:
         certification_cost = st.slider("Certification Cost (% of salary)", 0, 15, 2, step=1, key="certification")
     
+    # SECTION 6: Contact Center Specific (Only show for BCBS)
+    if project == "BCBS Telesales":
+        st.markdown("---")
+        st.subheader("☎️ SECTION 6: Contact Center Specific Factors")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            qa_scoring = st.selectbox("QA/Scoring Level", list(QA_SCORING_LEVELS.keys()), key="qa_level")
+        with col2:
+            adherence_factor = st.selectbox("Schedule Adherence", list(ADHERENCE_FACTORS.keys()), key="adherence")
+        with col3:
+            calls_per_hour = st.slider("Avg Calls/Hour", 4, 20, 8, key="calls_per_hour")
+        with col4:
+            handle_time_min = st.slider("Avg Handle Time (min)", 2, 30, 5, key="handle_time")
+        
+        qa_cost_pct = QA_SCORING_LEVELS[qa_scoring]
+        adherence_mult = ADHERENCE_FACTORS[adherence_factor]
+        
+        cc_enabled = True
+    else:
+        qa_cost_pct = 0.05
+        adherence_mult = 1.0
+        calls_per_hour = 0
+        handle_time_min = 0
+        cc_enabled = False
+    
     st.markdown("---")
     
     # ==================== CALCULATIONS ====================
     
-    project_data = PROJECTS[project]
-    base_annual_cost = project_data["base_costs"][region]
+    base_annual_cost = project_info["base_costs"][region]
     
     # Apply complexity, delivery, channel multipliers
-    complexity_mult = project_data["complexity_multipliers"][complexity]
-    delivery_mult = project_data["delivery_models"][delivery_model]
-    channel_mult = project_data["channels"][channel]
+    complexity_mult = project_info["complexity_multipliers"][complexity]
+    delivery_mult = project_info["delivery_models"][delivery_model]
+    channel_mult = project_info["channels"][channel]
     client_mult = CLIENT_TYPES[client_type]
     sla_mult = SLA_LEVELS[sla_level]
     support_mult = SUPPORT_MODELS[support_model]
     
     # Base cost per FTE with all multipliers
     cost_per_fte = base_annual_cost * complexity_mult * delivery_mult * channel_mult * client_mult * sla_mult * support_mult
+    
+    # Apply adherence for contact center
+    if cc_enabled:
+        cost_per_fte = cost_per_fte * adherence_mult
     
     # Cost breakdown
     salary = cost_per_fte * 0.60
@@ -329,10 +417,11 @@ with tab1:
     insurance_add = salary * (insurance_cost_pct / 100)
     mgmt_overhead = salary * (management_overhead / 100)
     quality_cost = (salary + benefits + overhead + tools_tech + final_training) * quality_multiplier
+    qa_cost = (salary + benefits) * qa_cost_pct if cc_enabled else 0
     
     # Total cost per FTE (annual)
     total_cost_per_fte = (salary + benefits + overhead + tools_tech + final_training + 
-                          compliance + travel + insurance_add + mgmt_overhead)
+                          compliance + travel + insurance_add + mgmt_overhead + qa_cost)
     
     # Apply ramp-up costs for year 1
     year1_adjustments = (ramp_m1_bonus + ramp_m4_bonus + ramp_m7_bonus) / 100 * salary * fte
@@ -364,7 +453,7 @@ with tab1:
     if margin_override > 0:
         margin_target = margin_override / 100
     else:
-        margin_target = project_data["capabilities"][capability]
+        margin_target = project_info["capabilities"][capability]
         if pricing_tier:
             tier_margin = PRICING_TIERS[pricing_tier]["margin"]
             margin_target = tier_margin
@@ -399,6 +488,17 @@ with tab1:
     with col5:
         st.metric("Margin %", f"{margin_pct:.1f}%")
     
+    if cc_enabled:
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Calls/Year (est.)", f"{calls_per_hour * 8 * 250 * fte:,.0f}")
+        with col2:
+            st.metric("Cost per Call", f"{currency_symbol}{(year1_cost_adjusted/currency_factor)/(calls_per_hour * 8 * 250 * fte if calls_per_hour > 0 else 1):.2f}")
+        with col3:
+            st.metric("Cost per FTE/Day", f"{currency_symbol}{(total_cost_per_fte*currency_factor)/250:.0f}")
+        with col4:
+            st.metric("Agents Required", f"{int(fte)}")
+    
     st.markdown("---")
     
     # Cost Breakdown
@@ -411,12 +511,11 @@ with tab1:
             "Overhead",
             "Tools & Technology",
             "Training",
+            "QA/Scoring" if cc_enabled else "Quality/Audit",
             "Compliance",
             "Travel",
             "Insurance",
             "Management Overhead",
-            "Quality/Audit",
-            "Onboarding (Y1 only)",
             "---",
             "SUBTOTAL (per FTE)",
             "Total FTEs",
@@ -442,12 +541,11 @@ with tab1:
             f"{currency_symbol}{overhead*currency_factor:,.0f}",
             f"{currency_symbol}{tools_tech*currency_factor:,.0f}",
             f"{currency_symbol}{final_training*currency_factor:,.0f}",
+            f"{currency_symbol}{qa_cost*currency_factor:,.0f}" if cc_enabled else f"{currency_symbol}{(quality_cost/fte)*currency_factor:,.0f}",
             f"{currency_symbol}{compliance*currency_factor:,.0f}",
             f"{currency_symbol}{travel*currency_factor:,.0f}",
             f"{currency_symbol}{insurance_add*currency_factor:,.0f}",
             f"{currency_symbol}{mgmt_overhead*currency_factor:,.0f}",
-            f"{currency_symbol}{(quality_cost/fte)*currency_factor:,.0f}",
-            f"{currency_symbol}{(onboarding/fte)*currency_factor:,.0f}",
             "—",
             f"{currency_symbol}{total_cost_per_fte*currency_factor:,.0f}",
             f"{fte}",
@@ -474,7 +572,7 @@ with tab1:
     st.markdown("---")
     
     # Save scenario
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("💾 Save Scenario", key="save_main"):
             st.session_state.scenarios[scenario_name] = {
@@ -496,17 +594,6 @@ with tab1:
                 "pricing_tier": pricing_tier,
                 "margin_override": margin_override,
                 "attrition": attrition,
-                "onboarding_cost_pct": onboarding_cost_pct,
-                "training_depth": training_depth,
-                "compliance_cost": compliance_cost,
-                "quality_multiplier": quality_multiplier,
-                "management_overhead": management_overhead,
-                "travel_cost_pct": travel_cost_pct,
-                "insurance_cost_pct": insurance_cost_pct,
-                "retention_bonus": retention_bonus,
-                "performance_bonus": performance_bonus,
-                "skill_premium": skill_premium,
-                "certification_cost": certification_cost,
                 "acv": acv_converted,
                 "tcv": tcv_converted,
                 "margin_pct": margin_pct
@@ -542,6 +629,9 @@ with tab1:
                 f"{scenario_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                 "application/json"
             )
+    
+    with col3:
+        st.caption(f"✅ Saved Scenarios: {len(st.session_state.scenarios)}")
 
 
 # ==================== TAB 2: COMPARISON ====================
@@ -552,7 +642,7 @@ with tab2:
         st.warning("⚠️ No scenarios saved yet. Create scenarios in the Calculator tab first!")
     else:
         scenarios_list = list(st.session_state.scenarios.keys())
-        selected = st.multiselect("Select scenarios to compare:", scenarios_list, max_selections=6)
+        selected = st.multiselect("Select scenarios to compare:", scenarios_list, max_selections=8)
         
         if selected:
             comparison_data = []
@@ -564,7 +654,6 @@ with tab2:
                     "Region": s["region"],
                     "FTEs": s["fte"],
                     "Complexity": s["complexity"],
-                    "Annual Cost": f"{s['currency']}{s['acv']/(s['years']):,.0f}",
                     "ACV": f"{s['currency']}{s['acv']:,.0f}",
                     "TCV": f"{s['currency']}{s['tcv']:,.0f}",
                     "Margin %": f"{s['margin_pct']:.1f}%"
@@ -646,13 +735,12 @@ with tab5:
         
         whatif_results = []
         for fte_var in fte_scenarios:
-            # Simplified calculation for comparison
             factor = fte_var / base_data["fte"]
             whatif_results.append({
                 "FTE Scenario": f"{int(fte_var)}",
                 "Change": f"{(factor-1)*100:+.0f}%",
                 "Est. ACV": f"${base_data['acv'] * factor:,.0f}",
-                "Est. Margin $": f"${(base_data['acv'] - (base_data['acv']/(1-base_data['margin_pct']/100))) * factor:,.0f}"
+                "Est. Margin %": f"{base_data['margin_pct']:.1f}%"
             })
         
         st.dataframe(pd.DataFrame(whatif_results), use_container_width=True)
@@ -660,8 +748,80 @@ with tab5:
         st.warning("Create a scenario first to enable What-If analysis")
 
 
-# ==================== TAB 6: CUSTOMIZATION ====================
+# ==================== TAB 6: CONTACT CENTER ANALYTICS ====================
 with tab6:
+    st.header("☎️ Contact Center Analytics (BCBS)")
+    
+    st.info("📊 Real-time metrics and KPIs for Contact Center operations")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        agents = st.slider("Number of Agents:", 10, 500, 100, key="cc_agents")
+        calls_per_day = st.slider("Avg Calls/Agent/Day:", 20, 100, 60, key="cc_calls_day")
+    
+    with col2:
+        avg_handle_time = st.slider("Avg Handle Time (min):", 2, 30, 5, key="cc_handle")
+        work_days_year = st.slider("Working Days/Year:", 200, 260, 250, key="cc_workdays")
+    
+    with col3:
+        service_level = st.slider("Service Level Target (%):", 70, 99, 85, key="cc_sl")
+        shrinkage_pct = st.slider("Shrinkage (%)", 0, 30, 15, key="cc_shrinkage")
+    
+    # Calculations
+    total_calls_year = agents * calls_per_day * work_days_year
+    total_minutes = total_calls_year * avg_handle_time
+    total_hours = total_minutes / 60
+    productive_fte = total_hours / (8 * work_days_year)
+    required_fte = productive_fte / (1 - shrinkage_pct / 100)
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Calls/Year", f"{total_calls_year:,.0f}")
+    with col2:
+        st.metric("Total AHT Hours", f"{total_hours:,.0f}")
+    with col3:
+        st.metric("Productive FTE", f"{productive_fte:,.0f}")
+    with col4:
+        st.metric("Required FTE (w/ Shrinkage)", f"{required_fte:,.0f}")
+    
+    # Metrics table
+    st.subheader("📈 Key Performance Indicators")
+    
+    kpi_data = {
+        "Metric": [
+            "Agents Available",
+            "Calls per Agent per Day",
+            "Avg Handle Time (minutes)",
+            "Total Calls per Year",
+            "Service Level Target",
+            "Shrinkage %",
+            "Productive FTE Required",
+            "Total FTE Required",
+            "Calls per FTE per Day",
+            "Revenue per Call (est.)",
+            "Cost per Call (est.)"
+        ],
+        "Value": [
+            f"{agents}",
+            f"{calls_per_day}",
+            f"{avg_handle_time}",
+            f"{total_calls_year:,.0f}",
+            f"{service_level}%",
+            f"{shrinkage_pct}%",
+            f"{productive_fte:,.0f}",
+            f"{required_fte:,.0f}",
+            f"{calls_per_day}",
+            f"${100/avg_handle_time:.2f}",
+            f"${50/calls_per_day:.2f}"
+        ]
+    }
+    
+    st.dataframe(pd.DataFrame(kpi_data), use_container_width=True)
+
+
+# ==================== TAB 7: CUSTOMIZATION ====================
+with tab7:
     st.header("⚙️ Customization & Extensibility")
     
     st.subheader("Add New Project")
@@ -678,7 +838,9 @@ with tab6:
             if new_project_name and new_project_regions:
                 regions_list = [r.strip() for r in new_project_regions.split(",")]
                 new_proj_data = {
-                    "color": "🟡",
+                    "color": "🟣",
+                    "icon": "💡",
+                    "description": "Custom Project",
                     "base_costs": {r: new_project_base_cost for r in regions_list},
                     "regions": regions_list,
                     "delivery_models": {"Standard": 1.0, "Premium": 1.2},
@@ -691,7 +853,7 @@ with tab6:
     
     st.markdown("---")
     
-    st.subheader("Saved Custom Projects")
+    st.subheader("📚 Saved Custom Projects")
     if st.session_state.saved_projects:
         for proj_name, proj_data in st.session_state.saved_projects.items():
             st.write(f"**{proj_name}** - Regions: {', '.join(proj_data['regions'])}")
@@ -701,6 +863,6 @@ with tab6:
 
 # ==================== FOOTER ====================
 st.markdown("---")
-st.success("✅ **Enterprise Pricing Calculator - Hybrid Flexibility Edition**")
-st.caption("🚀 MAXIMUM VARIABILITY | Multi-Project | Advanced Scenarios | Cross-Project Comparison")
+st.success("✅ **Enterprise Pricing Calculator - 3-Project Edition**")
+st.caption("🔵 LBG | 🟢 Palmetto | 🟡 BCBS | Hybrid Flexibility | 40+ Variability Dimensions")
 st.caption(f"📊 Saved Scenarios: {len(st.session_state.scenarios)} | Custom Projects: {len(st.session_state.saved_projects)}")
