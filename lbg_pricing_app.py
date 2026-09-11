@@ -614,9 +614,13 @@ with tab1:
         return out
 
     fn = f"Firstsource_Pricing_{skill_type}_{complexity}_{geography}_{datetime.now().strftime('%Y%m%d')}.xlsx"
-    st.download_button("📥 Download Full Pricing Sheet (Excel)", gen_excel(), fn,
-                       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    st.caption(f"5 sheets: Inputs | Metrics | Breakdown | {years}-Year Projection | Salary Reference")
+    try:
+        excel_data = gen_excel()
+        st.download_button("📥 Download Full Pricing Sheet (Excel)", excel_data, fn,
+                           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.caption(f"5 sheets: Inputs | Metrics | Breakdown | {years}-Year Projection | Salary Reference")
+    except Exception:
+        st.warning("⚠️ Excel download unavailable — add openpyxl to Requirements.txt")
 
 # ==================== TAB 2-8 (same logic, branded) ====================
 with tab2:
